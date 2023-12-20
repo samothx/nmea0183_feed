@@ -11,7 +11,7 @@ bytes = "1"
 
 [dependencies.tokio]
 version = "1"
-features = ["full"]
+features = ["rt", "rt-multi-thread", "macros"]
 
 [dependencies.tokio-util]
 version = "0.7"
