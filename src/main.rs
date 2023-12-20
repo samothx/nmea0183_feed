@@ -1,9 +1,9 @@
 #![warn(rust_2018_idioms)]
 
 use futures::stream::StreamExt;
-use std::{env,  str};
+use std::{env, str};
 
-use nmea0168_feed::{get_codec};
+use nmea0168_feed::get_codec;
 
 use tokio_serial::SerialPortBuilderExt;
 
@@ -24,7 +24,6 @@ async fn main() -> tokio_serial::Result<()> {
         .expect("Unable to set serial port exclusive to false");
 
     let mut reader = get_codec(port);
-
 
     while let Some(line_result) = reader.next().await {
         match line_result {
