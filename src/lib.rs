@@ -361,7 +361,58 @@ fn to_string(buf: &BytesMut) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use io::BufRead;
+    use std::fs::File;
+    use std::path::Path;
+
+    fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
+    where
+        P: AsRef<Path>,
+    {
+        let file = File::open(filename)?;
+        Ok(io::BufReader::new(file).lines())
+    }
 
     #[test]
-    fn it_works() {}
+    fn test_data() {
+        const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
+        match read_lines(TEST_FILE) {
+            Ok(lines) => {
+                // Consumes the iterator, returns an (Optional) String
+                let mut stm = Nmea0168Stm::new();
+                for (idx, line) in lines.enumerate() {
+                    if let Ok(line) = line {
+                        // println!("{} {}", idx + 1, line);
+                        line.chars().for_each(|ch| match stm.add_byte(&(ch as u8)) {
+                            Ok(res) => {
+                                assert!(res.is_none(), "{} {}", idx + 1, line);
+                            }
+                            Err(error) => {
+                                panic!("error parsing message {} {}: {:?}", idx + 1, line, error);
+                            }
+                        });
+                        match stm.add_byte(&CR) {
+                            Ok(res) => {
+                                assert!(res.is_none(), "{} {}", idx + 1, line)
+                            }
+                            Err(error) => {
+                                panic!("error parsing message {} {}: {:?}", idx, line, error);
+                            }
+                        }
+                        match stm.add_byte(&LF) {
+                            Ok(res) => {
+                                assert!(res.is_some(), "{} {}", idx + 1, line)
+                            }
+                            Err(error) => {
+                                panic!("error parsing message {} {}: {:?}", idx + 1, line, error);
+                            }
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                panic!("Error opening test file {} : {:?}", TEST_FILE, error);
+            }
+        }
+    }
 }
