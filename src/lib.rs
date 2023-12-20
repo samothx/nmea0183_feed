@@ -8,7 +8,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 #[derive(PartialEq, Debug, Clone)]
-enum Nmea0168State {
+enum NmeaState {
     Encapsulation,   // nothing received
     Talker,          // waiting for talker bytes
     MsgType,         // waiting for msgtype bytes
@@ -19,7 +19,7 @@ enum Nmea0168State {
 }
 
 #[derive(Debug)]
-pub struct Nmea0168Msg {
+pub struct Nmea0183Msg {
     encapsulation: bool,
     talker: String,
     msgtype: String,
@@ -28,7 +28,7 @@ pub struct Nmea0168Msg {
     chksum_valid: Option<bool>,
 }
 
-impl Nmea0168Msg {}
+impl Nmea0183Msg {}
 
 const LF: u8 = 0xA;
 const CR: u8 = 0xD;
@@ -40,7 +40,7 @@ const FIELD: u8 = b',';
 // const TAG: u8 = b'\\';
 // const HEX: u8 = b'^';
 
-impl Default for Nmea0168Msg {
+impl Default for Nmea0183Msg {
     fn default() -> Self {
         Self {
             encapsulation: false,
@@ -53,99 +53,99 @@ impl Default for Nmea0168Msg {
     }
 }
 
-struct Nmea0168Stm {
-    msg: Nmea0168Msg,
+struct NmeaStm {
+    msg: Nmea0183Msg,
     param: String,
     count: usize,
-    state: Nmea0168State,
+    state: NmeaState,
     chksum: u8,
 }
 
-impl Nmea0168Stm {
+impl NmeaStm {
     fn new() -> Self {
         Self {
-            msg: Nmea0168Msg::default(),
+            msg: Nmea0183Msg::default(),
             count: 0,
-            state: Nmea0168State::Encapsulation,
+            state: NmeaState::Encapsulation,
             param: String::new(),
             chksum: 0,
         }
     }
 
-    fn add_byte(&mut self, byte: &u8) -> Result<Option<Nmea0168Msg>, String> {
+    fn add_byte(&mut self, byte: &u8) -> Result<Option<Nmea0183Msg>, String> {
         // let state = self.state.clone();
         // let log_msg = format!("add_byte({}) in state {:?}", byte_2_print(byte), self.state);
 
         self.count += 1;
         if self.count > 82 {
-            self.state = Nmea0168State::Encapsulation;
+            self.state = NmeaState::Encapsulation;
             self.count = 0;
             // eprintln!("{} => error message too long", log_msg);
             return Err("Message length exceeds 82 characters".to_string());
         }
 
         if *byte == LF {
-            if self.state == Nmea0168State::LF {
-                self.state = Nmea0168State::Encapsulation;
+            if self.state == NmeaState::LF {
+                self.state = NmeaState::Encapsulation;
                 self.count = 0;
                 self.chksum = 0;
                 let result = take(&mut self.msg);
                 // eprintln!("{} => OK", log_msg);
                 Ok(Some(result))
             } else {
-                let err_msg = if let Nmea0168State::Invalid(err_msg) = &self.state {
+                let err_msg = if let NmeaState::Invalid(err_msg) = &self.state {
                     err_msg.clone()
                 } else {
                     format!("Unexpected line feed in state {:?}", self.state)
                 };
-                self.state = Nmea0168State::Encapsulation;
-                self.msg = Nmea0168Msg::default();
+                self.state = NmeaState::Encapsulation;
+                self.msg = Nmea0183Msg::default();
                 self.count = 0;
                 // eprintln!("{} => ERR {}", log_msg, err_msg);
                 Err(err_msg)
             }
         } else {
             match self.state {
-                Nmea0168State::Encapsulation => match *byte {
+                NmeaState::Encapsulation => match *byte {
                     XCL => {
                         self.msg.encapsulation = true;
-                        self.state = Nmea0168State::Talker;
+                        self.state = NmeaState::Talker;
                     }
                     START => {
                         self.msg.encapsulation = false;
-                        self.state = Nmea0168State::Talker;
+                        self.state = NmeaState::Talker;
                     }
                     _ => {
-                        self.state = Nmea0168State::Invalid(format!(
+                        self.state = NmeaState::Invalid(format!(
                             "Unexpected {} in state {:?}",
                             byte_2_print(byte),
                             self.state
                         ))
                     }
                 },
-                Nmea0168State::Talker => match *byte {
+                NmeaState::Talker => match *byte {
                     b'A'..=b'Z' => {
                         self.chksum = self.chksum ^ *byte;
                         self.msg.talker.push((*byte) as char);
                         if self.msg.talker.len() > 1 {
-                            self.state = Nmea0168State::MsgType;
+                            self.state = NmeaState::MsgType;
                         }
                     }
                     _ => {
-                        self.state = Nmea0168State::Invalid(format!(
+                        self.state = NmeaState::Invalid(format!(
                             "Unexpected {} in state {:?}",
                             byte_2_print(byte),
                             self.state
                         ))
                     }
                 },
-                Nmea0168State::MsgType => match *byte {
+                NmeaState::MsgType => match *byte {
                     b'A'..=b'Z' => {
                         self.chksum = self.chksum ^ *byte;
                         if self.msg.msgtype.len() < 3 {
                             self.msg.msgtype.push((*byte) as char);
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -155,9 +155,9 @@ impl Nmea0168Stm {
                     FIELD => {
                         self.chksum = self.chksum ^ *byte;
                         if self.msg.msgtype.len() == 3 {
-                            self.state = Nmea0168State::Params;
+                            self.state = NmeaState::Params;
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -166,9 +166,9 @@ impl Nmea0168Stm {
                     }
                     AST => {
                         if self.msg.msgtype.len() == 3 {
-                            self.state = Nmea0168State::Chksum;
+                            self.state = NmeaState::Chksum;
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -177,9 +177,9 @@ impl Nmea0168Stm {
                     }
                     CR => {
                         if self.msg.msgtype.len() == 3 {
-                            self.state = Nmea0168State::LF;
+                            self.state = NmeaState::LF;
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -187,14 +187,14 @@ impl Nmea0168Stm {
                         }
                     }
                     _ => {
-                        self.state = Nmea0168State::Invalid(format!(
+                        self.state = NmeaState::Invalid(format!(
                             "Unexpected {} in state {:?}",
                             byte_2_print(byte),
                             self.state
                         ))
                     }
                 },
-                Nmea0168State::Params => {
+                NmeaState::Params => {
                     // TODO: exclude XCL,START => invalid
                     // TODO: handle TAG, HEX
                     match *byte {
@@ -204,17 +204,17 @@ impl Nmea0168Stm {
                         }
                         AST => {
                             self.msg.params.push(take(&mut self.param));
-                            self.state = Nmea0168State::Chksum;
+                            self.state = NmeaState::Chksum;
                         }
                         CR => {
                             // TODO: does there have to be a comma before CR ?
                             self.msg.params.push(take(&mut self.param));
-                            self.state = Nmea0168State::LF
+                            self.state = NmeaState::LF
                         }
                         LF => {
                             // TODO: does there have to be a comma before CR ?
                             self.msg.params.push(take(&mut self.param));
-                            self.state = Nmea0168State::LF
+                            self.state = NmeaState::LF
                         }
                         _ => {
                             self.chksum = self.chksum ^ *byte;
@@ -222,12 +222,12 @@ impl Nmea0168Stm {
                         }
                     }
                 }
-                Nmea0168State::Chksum => match *byte {
+                NmeaState::Chksum => match *byte {
                     b'A'..=b'F' | b'0'..=b'9' => {
                         if self.msg.chksum.len() < 2 {
                             self.msg.chksum.push((*byte) as char)
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -242,9 +242,9 @@ impl Nmea0168Stm {
                                     self.msg.chksum.eq(format!("{:02X}", self.chksum).as_str()),
                                 )
                             }
-                            self.state = Nmea0168State::LF;
+                            self.state = NmeaState::LF;
                         } else {
-                            self.state = Nmea0168State::Invalid(format!(
+                            self.state = NmeaState::Invalid(format!(
                                 "Unexpected {} in state {:?}",
                                 byte_2_print(byte),
                                 self.state
@@ -252,23 +252,23 @@ impl Nmea0168Stm {
                         }
                     }
                     _ => {
-                        self.state = Nmea0168State::Invalid(format!(
+                        self.state = NmeaState::Invalid(format!(
                             "Unexpected {} in state {:?}",
                             byte_2_print(byte),
                             self.state
                         ))
                     }
                 },
-                Nmea0168State::LF => {
+                NmeaState::LF => {
                     if *byte != LF {
-                        self.state = Nmea0168State::Invalid(format!(
+                        self.state = NmeaState::Invalid(format!(
                             "Unexpected {} in state {:?}",
                             byte_2_print(byte),
                             self.state
                         ))
                     }
                 }
-                Nmea0168State::Invalid(_) => {}
+                NmeaState::Invalid(_) => {}
             };
 
             // eprintln!("{} => state {:?}", log_msg, self.state);
@@ -278,19 +278,19 @@ impl Nmea0168Stm {
 }
 
 pub struct LineCodec {
-    stm: Nmea0168Stm,
+    stm: NmeaStm,
 }
 
 impl Default for LineCodec {
     fn default() -> Self {
         Self {
-            stm: Nmea0168Stm::new(),
+            stm: NmeaStm::new(),
         }
     }
 }
 
 impl Decoder for LineCodec {
-    type Item = Nmea0168Msg;
+    type Item = Nmea0183Msg;
     type Error = io::Error;
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
@@ -379,7 +379,7 @@ mod tests {
         match read_lines(TEST_FILE) {
             Ok(lines) => {
                 // Consumes the iterator, returns an (Optional) String
-                let mut stm = Nmea0168Stm::new();
+                let mut stm = NmeaStm::new();
                 for (idx, line) in lines.enumerate() {
                     if let Ok(line) = line {
                         // println!("{} {}", idx + 1, line);

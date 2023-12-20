@@ -3,7 +3,7 @@
 use futures::stream::StreamExt;
 use std::{env, str};
 
-use nmea0168_feed::get_codec;
+use nmea0183_feed::get_codec;
 
 use tokio_serial::SerialPortBuilderExt;
 
@@ -29,10 +29,10 @@ async fn main() -> tokio_serial::Result<()> {
         match line_result {
             Ok(line) => {
                 msg_count += 1;
-                println!("main msg {:6} {:?}", msg_count, line)
+                println!("{:6} {:?}", msg_count, line)
             }
             Err(err) => {
-                println!("main msg {:6} Error {:?}", msg_count, err)
+                println!("{:6} Error {:?}", msg_count, err)
             }
         }
     }

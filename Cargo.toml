@@ -1,5 +1,5 @@
 [package]
-name = "nmea0168_feed"
+name = "nmea0183_feed"
 version = "0.1.0"
 edition = "2021"
 
