@@ -38,18 +38,20 @@ impl Context {
             self.inner.reset();
             self.current_state = Rc::clone(&self.inner.states.start);
             result
-        } else if *event == LF {
-            let result = if self.inner.error.is_empty() {
-                Ok(Some(take(&mut self.inner.msg)))
-            } else {
-                Err(take(&mut self.inner.error))
-            };
-            self.inner.reset();
-            self.current_state = Rc::clone(&self.inner.states.start);
-            result
         } else {
             self.current_state = self.current_state.handle_event(event, &mut self.inner);
-            Ok(None)
+            if *event == LF {
+                let result = if self.inner.error.is_empty() {
+                    Ok(Some(take(&mut self.inner.msg)))
+                } else {
+                    Err(take(&mut self.inner.error))
+                };
+                self.inner.reset();
+                self.current_state = Rc::clone(&self.inner.states.start);
+                result
+            } else {
+                Ok(None)
+            }
         }
     }
 }

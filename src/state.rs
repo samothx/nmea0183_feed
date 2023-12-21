@@ -217,13 +217,17 @@ pub struct Linefeed;
 
 impl State for Linefeed {
     fn handle_event(&self, event: &u8, ctx: &mut InnerContext) -> Rc<Box<dyn State>> {
-        ctx.error = format!(
-            "Invalid event {} @{} in state {}",
-            byte_2_print(event),
-            ctx.event_count,
-            self.name()
-        );
-        Rc::clone(&ctx.states.invalid)
+        if *event == LF {
+            Rc::clone(&ctx.states.start)
+        } else {
+            ctx.error = format!(
+                "Invalid event {} @{} in state {}",
+                byte_2_print(event),
+                ctx.event_count,
+                self.name()
+            );
+            Rc::clone(&ctx.states.invalid)
+        }
     }
 
     fn name(&self) -> &str {
