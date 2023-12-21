@@ -1,4 +1,7 @@
 #![allow(dead_code)]
+#![feature(test)]
+
+extern crate test;
 
 use crate::state::{Checksum, Invalid, Linefeed, MsgType, Params, Start, State, Talker, LF};
 use bytes::BytesMut;
@@ -214,9 +217,10 @@ fn to_string(buf: &BytesMut) -> String {
 mod tests {
     use super::*;
     use crate::state::CR;
-    use std::fs::File;
+    use std::fs::{read_to_string, File};
     use std::io::BufRead;
     use std::path::Path;
+    use test::Bencher;
 
     fn read_lines<P>(filename: P) -> std::io::Result<std::io::Lines<std::io::BufReader<File>>>
     where
@@ -285,5 +289,34 @@ mod tests {
                 panic!("Error opening test file {} : {:?}", TEST_FILE, error);
             }
         }
+    }
+
+    #[bench]
+    fn bench_data(b: &mut Bencher) {
+        const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
+        let test_data =
+            read_to_string(TEST_FILE).expect(format!("failed to open file {}", TEST_FILE).as_str());
+
+        b.iter(|| {
+            let mut ctx = Context::new();
+            let mut count = 0;
+            test_data.chars().for_each(|ch| {
+                if let Ok(res) = ctx.handle_event(&(ch as u8)) {
+                    if let Some(msg) = res {
+                        if let Some(valid) = msg.chksum_valid {
+                            if valid {
+                                count += 1;
+                            } else {
+                                panic!("invalid checksum encountered")
+                            }
+                        } else {
+                            panic!("no checksum encountered")
+                        }
+                    }
+                } else {
+                    panic!("failed to decode")
+                }
+            })
+        });
     }
 }
