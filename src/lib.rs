@@ -1,4 +1,7 @@
-//#![allow(dead_code)]
+#![allow(dead_code)]
+#![feature(test)]
+
+extern crate test;
 
 use bytes::BytesMut;
 use std::io;
@@ -362,8 +365,10 @@ fn to_string(buf: &BytesMut) -> String {
 mod tests {
     use super::*;
     use io::BufRead;
-    use std::fs::File;
+    use std::fs::{read_to_string, File};
+
     use std::path::Path;
+    use test::Bencher;
 
     fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
     where
@@ -414,5 +419,33 @@ mod tests {
                 panic!("Error opening test file {} : {:?}", TEST_FILE, error);
             }
         }
+    }
+    #[bench]
+    fn bench_data(b: &mut Bencher) {
+        const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
+        let test_data =
+            read_to_string(TEST_FILE).expect(format!("failed to open file {}", TEST_FILE).as_str());
+
+        b.iter(|| {
+            let mut ctx = NmeaStm::new();
+            let mut count = 0;
+            test_data.chars().for_each(|ch| {
+                if let Ok(res) = ctx.add_byte(&(ch as u8)) {
+                    if let Some(msg) = res {
+                        if let Some(valid) = msg.chksum_valid {
+                            if valid {
+                                count += 1;
+                            } else {
+                                panic!("invalid checksum encountered")
+                            }
+                        } else {
+                            panic!("no checksum encountered")
+                        }
+                    }
+                } else {
+                    panic!("failed to decode")
+                }
+            })
+        });
     }
 }
