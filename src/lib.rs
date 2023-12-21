@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 #![feature(test)]
 
-extern crate test;
-
 use crate::state::{Checksum, Invalid, Linefeed, MsgType, Params, Start, State, Talker, LF};
 use bytes::BytesMut;
 use std::mem::take;
@@ -11,6 +9,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
 
 mod state;
+mod state2;
 
 const MAX_MSG_SIZE: usize = 82;
 
@@ -215,6 +214,7 @@ fn to_string(buf: &BytesMut) -> String {
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
     use super::*;
     use crate::state::CR;
     use std::fs::{read_to_string, File};
