@@ -1,12 +1,11 @@
 #![allow(dead_code)]
 
+use crate::state::{Checksum, Invalid, Linefeed, MsgType, Params, Start, State, Talker, LF};
+use bytes::BytesMut;
 use std::mem::take;
 use std::rc::Rc;
-use bytes::BytesMut;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio_util::codec::{Decoder, Encoder, Framed};
-use crate::state::{Checksum, Invalid, LF, Linefeed, MsgType, Params, Start, State, Talker};
-
 
 mod state;
 
@@ -17,7 +16,7 @@ pub struct Context {
     inner: InnerContext,
 }
 
-impl  Context {
+impl Context {
     pub fn new() -> Self {
         let inner = InnerContext::new();
 
@@ -60,7 +59,7 @@ struct InnerContext {
     msg: Nmea0183Msg,
     states: StateList,
     chksum: u8,
-    collect: String
+    collect: String,
 }
 
 impl InnerContext {
@@ -71,7 +70,7 @@ impl InnerContext {
             msg: Nmea0183Msg::default(),
             states: StateList::new(),
             chksum: 0,
-            collect: String::new()
+            collect: String::new(),
         }
     }
 
@@ -90,7 +89,7 @@ struct StateList {
     msgtype: Rc<Box<dyn State>>,
     params: Rc<Box<dyn State>>,
     chksum: Rc<Box<dyn State>>,
-    linefeed: Rc<Box<dyn State>>
+    linefeed: Rc<Box<dyn State>>,
 }
 
 impl StateList {
@@ -107,9 +106,6 @@ impl StateList {
     }
 }
 
-
-
-
 #[derive(Debug)]
 pub struct Nmea0183Msg {
     encapsulation: bool,
@@ -119,7 +115,6 @@ pub struct Nmea0183Msg {
     chksum: String,
     chksum_valid: Option<bool>,
 }
-
 
 impl Default for Nmea0183Msg {
     fn default() -> Self {
@@ -133,7 +128,6 @@ impl Default for Nmea0183Msg {
         }
     }
 }
-
 
 pub struct LineCodec {
     ctx: Context,
@@ -219,10 +213,10 @@ fn to_string(buf: &BytesMut) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::BufRead;
-    use std::fs::File;
-    use std::path::Path;
     use crate::state::CR;
+    use std::fs::File;
+    use std::io::BufRead;
+    use std::path::Path;
 
     fn read_lines<P>(filename: P) -> std::io::Result<std::io::Lines<std::io::BufReader<File>>>
     where
@@ -242,14 +236,20 @@ mod tests {
                 for (idx, line) in lines.enumerate() {
                     if let Ok(line) = line {
                         // println!("{} {}", idx + 1, line);
-                        line.chars().for_each(|ch| match ctx.handle_event(&(ch as u8)) {
-                            Ok(res) => {
-                                assert!(res.is_none(), "{} {}", idx + 1, line);
-                            }
-                            Err(error) => {
-                                panic!("error parsing message {} {}: {:?}", idx + 1, line, error);
-                            }
-                        });
+                        line.chars()
+                            .for_each(|ch| match ctx.handle_event(&(ch as u8)) {
+                                Ok(res) => {
+                                    assert!(res.is_none(), "{} {}", idx + 1, line);
+                                }
+                                Err(error) => {
+                                    panic!(
+                                        "error parsing message {} {}: {:?}",
+                                        idx + 1,
+                                        line,
+                                        error
+                                    );
+                                }
+                            });
                         match ctx.handle_event(&CR) {
                             Ok(res) => {
                                 assert!(res.is_none(), "{} {}", idx + 1, line)
@@ -260,7 +260,19 @@ mod tests {
                         }
                         match ctx.handle_event(&LF) {
                             Ok(res) => {
-                                assert!(res.is_some(), "{} {}", idx + 1, line)
+                                assert!(
+                                    res.expect(
+                                        format!("empty result @{}, {}", idx + 1, line).as_str()
+                                    )
+                                    .chksum_valid
+                                    .expect(
+                                        format!("checksum not calculated @{} {}", idx + 1, line)
+                                            .as_str()
+                                    ),
+                                    "checksum does not match @{} {}",
+                                    idx + 1,
+                                    line
+                                )
                             }
                             Err(error) => {
                                 panic!("error parsing message {} {}: {:?}", idx + 1, line, error);

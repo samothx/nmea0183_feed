@@ -31,8 +31,9 @@ impl State for Start {
             START => Rc::clone(&ctx.states.talker),
             _ => {
                 ctx.error = format!(
-                    "Invalid event {} in state {}",
+                    "Invalid event {} @{} in state {}",
                     byte_2_print(event),
+                    ctx.event_count,
                     self.name()
                 );
                 Rc::clone(&ctx.states.invalid)
@@ -62,8 +63,9 @@ impl State for Talker {
             }
             _ => {
                 ctx.error = format!(
-                    "Invalid event {} in state {}",
+                    "Invalid event {} @{} in state {}",
                     byte_2_print(event),
+                    ctx.event_count,
                     self.name()
                 );
                 Rc::clone(&ctx.states.invalid)
@@ -181,6 +183,8 @@ impl State for Checksum {
             CR => {
                 if ctx.collect.len() == 2 {
                     ctx.msg.chksum = take(&mut ctx.collect);
+                    ctx.msg.chksum_valid =
+                        Some(format!("{:02X}", ctx.chksum).eq(ctx.msg.chksum.as_str()));
                     Rc::clone(&ctx.states.linefeed)
                 } else {
                     ctx.error = format!(
@@ -250,118 +254,3 @@ fn byte_2_print(byte: &u8) -> String {
         }
     )
 }
-
-/*
-    pub fn handle_event(&mut self, event: &u8) -> Result<Option<Nmea0183Msg>, String> {
-        let mut current_state = self.current_state.as_ref().expect("context has not been initialized");
-        let next_state = current_state.handle_event(event, self);
-        unimplemented!()
-
-
-        if let Some(state) = &self.current_state {
-            let next_state =
-            if next_state.is_term() {
-                self.current_state = Some(Rc::clone(&self.state_list.encapsulation));
-                if self.error.is_empty() {
-                    Ok(Some(take(&mut self.msg)))
-                } else {
-                    Err(take(&mut self.error))
-                }
-            } else {
-                self.current_state = Some(next_state);
-                Ok(None)
-            }
-        } else {
-            let next_state = self.state_list.encapsulation.handle_event(event, &mut self);
-            if next_state.is_term() {
-                self.current_state = Some(Rc::clone(&self.state_list.encapsulation));
-                if self.error.is_empty() {
-                    Ok(Some(take(&mut self.msg)))
-                } else {
-                    Err(take(&mut self.error))
-                }
-            } else {
-                self.current_state = Some(next_state);
-                Ok(None)
-            }
-        }
-
-    }
-
-    fn reset(&mut self) {
-        self.error.clear();
-        self.event_count = 0;
-        self.current_state = Some(Rc::clone(&self.state_list.encapsulation));
-        self.msg = Nmea0183Msg::default()
-    }
-
-    fn init_state(&mut self) -> bool {
-        self.event_count += 1;
-        if self.event_count > MAX_MSG_SIZE {
-            self.error.push_str("Message is too long");
-            true
-        } else {
-            false
-        }
-    }
-}
-
-trait State {
-    fn handle_event(&self, event: &u8, ctx: &mut MsgContext) -> Rc<Box<dyn State>>;
-    fn is_term(&self) -> bool;
-}
-
-struct Term;
-impl State for Term {
-    fn handle_event(&self, event: &u8, ctx: &mut MsgContext) -> Rc<Box<dyn State>> {
-        Rc::clone(&ctx.state_list.term)
-    }
-    fn is_term(&self) -> bool {
-        true
-    }
-}
-
-
-struct Start;
-impl State for Start {
-    fn handle_event(&self, event: &u8, ctx: &mut MsgContext) -> Rc<Box<dyn State>> {
-        todo!()
-    }
-    fn is_term(&self) -> bool {
-        false
-    }
-}
-
-struct Talker;
-
-impl State for Talker {
-    fn handle_event(&self, event: &u8, ctx: &mut MsgContext) -> Rc<Box<dyn State>> {
-        todo!()
-    }
-
-    fn is_term(&self) -> bool {
-        false
-    }
-
-}
-
-struct Invalid;
-
-impl State for Invalid {
-    fn handle_event(&self, event: &u8, ctx: &mut MsgContext) -> Rc<Box<dyn State>> {
-        if ctx.init_state() {
-            Rc::clone(&ctx.state_list.term)
-        } else {
-            match *event {
-                LF => Rc::clone(&ctx.state_list.term),
-                _ => Rc::clone(&ctx.state_list.invalid)
-            }
-        }
-    }
-
-    fn is_term(&self) -> bool {
-        false
-    }
-
-}
-*/
