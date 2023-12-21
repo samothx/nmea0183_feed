@@ -148,6 +148,15 @@ impl State for Params {
                 ctx.msg.params.push(take(&mut ctx.collect));
                 Rc::clone(&ctx.states.linefeed)
             }
+            LF => {
+                ctx.error = format!(
+                    "Invalid event {} @{} in state {}",
+                    byte_2_print(event),
+                    ctx.event_count,
+                    self.name()
+                );
+                Rc::clone(&ctx.states.invalid)
+            }
             _ => {
                 ctx.chksum = ctx.chksum ^ event;
                 ctx.collect.push(*event as char);
