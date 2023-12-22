@@ -68,8 +68,10 @@ fn to_string(buf: &BytesMut) -> String {
 mod tests {
     use crate::get_codec;
     use futures::stream::StreamExt;
+    use rand;
     use tokio::fs::File;
-    use tokio::io::AsyncReadExt;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::task::yield_now;
     use tokio_test;
 
     const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
@@ -120,12 +122,55 @@ mod tests {
             while let Some(result) = reader.next().await {
                 count += 1;
                 match result {
-                    Ok(res) => eprintln!("{:?}", res),
+                    Ok(_res) => (), // eprintln!("{:?}", res),
                     Err(error) => {
                         panic!("Error on msg {}: {:?}", count, error)
                     }
                 }
             }
         })
+    }
+
+    #[test]
+    fn test_bytewise_fail() {
+        aw!(async {
+            let (mut tx, rx) = tokio::io::duplex(64);
+            let mut reader = get_codec(rx);
+            tokio::spawn(async move {
+                let mut random_bytes: Vec<u8> = (0..60)
+                    .map(|_| rand::random::<u8>())
+                    .filter(|b| *b != 0xA)
+                    .collect();
+                random_bytes.push(0xA);
+                for b in random_bytes.iter() {
+                    tx.write_u8(*b).await.expect("cannot send byte");
+                    yield_now().await;
+                }
+
+                let mut file = File::open(TEST_FILE)
+                    .await
+                    .expect(format!("failed to open file {}", TEST_FILE).as_str());
+
+                let mut buf: [u8; 1] = [0];
+                while let Ok(num_bytes) = file.read(&mut buf).await {
+                    if num_bytes > 0 {
+                        tx.write_u8(buf[0]).await.expect("cannot send byte");
+                        yield_now().await;
+                    } else {
+                        break;
+                    }
+                }
+            });
+            let mut count = 0;
+            while let Some(result) = reader.next().await {
+                count += 1;
+                match result {
+                    Ok(_res) => (), //eprintln!("{:?}", res),
+                    Err(error) => {
+                        panic!("Error on msg {}: {:?}", count, error)
+                    }
+                }
+            }
+        });
     }
 }

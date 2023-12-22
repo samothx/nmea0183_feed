@@ -9,12 +9,12 @@ mod state;
 
 const MAX_MSG_SIZE: usize = 82;
 
-pub struct Context {
+pub struct StateMachine {
     current_state: Rc<Box<dyn State>>,
     inner: InnerContext,
 }
 
-impl Context {
+impl StateMachine {
     pub fn new() -> Self {
         let inner = InnerContext::new();
 
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn test_data() {
         const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
-        let mut ctx = Context::new();
+        let mut ctx = StateMachine::new();
         match read_lines(TEST_FILE) {
             Ok(lines) => {
                 // Consumes the iterator, returns an (Optional) String
@@ -205,7 +205,7 @@ mod tests {
             read_to_string(TEST_FILE).expect(format!("failed to open file {}", TEST_FILE).as_str());
 
         b.iter(|| {
-            let mut ctx = Context::new();
+            let mut ctx = StateMachine::new();
             let mut count = 0;
             test_data.chars().for_each(|ch| {
                 if let Ok(res) = ctx.handle_event(&(ch as u8)) {

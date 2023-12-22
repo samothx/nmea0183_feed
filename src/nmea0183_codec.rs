@@ -1,4 +1,4 @@
-use crate::nmea0183_codec::context::Context;
+use crate::nmea0183_codec::context::StateMachine;
 use crate::Nmea0183Msg;
 use bytes::BytesMut;
 use tokio_util::codec::{Decoder, Encoder};
@@ -6,14 +6,14 @@ use tokio_util::codec::{Decoder, Encoder};
 mod context;
 
 pub struct Nmea0183Codec {
-    ctx: Context,
+    ctx: StateMachine,
     first: bool,
 }
 
 impl Default for Nmea0183Codec {
     fn default() -> Self {
         Self {
-            ctx: Context::new(),
+            ctx: StateMachine::new(),
             first: true,
         }
     }
