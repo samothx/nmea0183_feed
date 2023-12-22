@@ -7,12 +7,14 @@ mod context;
 
 pub struct Nmea0183Codec {
     ctx: Context,
+    first: bool,
 }
 
 impl Default for Nmea0183Codec {
     fn default() -> Self {
         Self {
             ctx: Context::new(),
+            first: true,
         }
     }
 }
@@ -33,14 +35,22 @@ impl Decoder for Nmea0183Codec {
                 Ok(result) => {
                     if let Some(result) = result {
                         rc = Ok(Some(result));
+                        if self.first {
+                            self.first = false
+                        }
                         true
                     } else {
                         false
                     }
                 }
                 Err(error) => {
-                    rc = Err(std::io::Error::new(std::io::ErrorKind::Other, error));
-                    true
+                    if self.first {
+                        rc = Err(std::io::Error::new(std::io::ErrorKind::Other, error));
+                        true
+                    } else {
+                        self.first = false;
+                        false
+                    }
                 }
             });
 
