@@ -43,6 +43,7 @@ where
     Nmea0183Codec::default().framed(port)
 }
 
+#[allow(dead_code)]
 fn byte_2_print(byte: &u8) -> String {
     format!(
         "{:02X}-{}",

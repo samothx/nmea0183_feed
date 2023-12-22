@@ -1,7 +1,7 @@
 use crate::nmea0183_codec::context::state::{
     Checksum, Invalid, Linefeed, MsgType, Params, Start, State, Talker, LF,
 };
-use crate::{byte_2_print, Nmea0183Msg};
+use crate::Nmea0183Msg;
 use std::mem::take;
 use std::rc::Rc;
 
@@ -25,11 +25,11 @@ impl Context {
     }
 
     pub fn handle_event(&mut self, event: &u8) -> Result<Option<Nmea0183Msg>, String> {
-        eprintln!(
+        /*eprintln!(
             "handle_event({}) in state {}",
             byte_2_print(event),
             self.current_state.name()
-        );
+        );*/
         self.inner.event_count += 1;
         if self.inner.event_count > MAX_MSG_SIZE {
             let result = if self.inner.error.is_empty() {

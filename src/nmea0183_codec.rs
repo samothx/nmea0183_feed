@@ -36,9 +36,6 @@ impl Decoder for Nmea0183Codec {
                         Ok(result) => {
                             if let Some(result) = result {
                                 rc = Ok(Some(result));
-                                if self.first == true {
-                                    self.first = false
-                                }
                                 true
                             } else {
                                 false
@@ -51,15 +48,19 @@ impl Decoder for Nmea0183Codec {
                     });
 
             if let Some(position) = position {
+                // we only get here if we have a result or an error
                 _ = src.split_to(offset + position + 1);
+                if self.first == true {
+                    self.first = false;
+                    if rc.is_err() {
+                        // this must be an error
+                        eprintln!("decode() ignoring first error: {:?}", rc);
+                        rc = Ok(None);
+                        continue;
+                    }
+                }
             }
-
-            if self.first == true {
-                eprintln!("ignoring first error: {:?}", rc);
-                self.first = false
-            } else {
-                break;
-            }
+            break;
         }
         rc
     }
