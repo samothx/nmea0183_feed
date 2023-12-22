@@ -1,4 +1,8 @@
-use crate::InnerContext;
+// use crate::InnerContext;
+// use std::mem::take;
+// use std::rc::Rc;
+
+use crate::nmea0183_codec::context::InnerContext;
 use std::mem::take;
 use std::rc::Rc;
 
@@ -52,7 +56,7 @@ impl State for Talker {
     fn handle_event(&self, event: &u8, ctx: &mut InnerContext) -> Rc<Box<dyn State>> {
         match *event {
             b'A'..=b'Z' => {
-                ctx.chksum = ctx.chksum ^ event;
+                ctx.chksum ^= event;
                 ctx.collect.push(*event as char);
                 if ctx.collect.len() > 1 {
                     ctx.msg.talker = take(&mut ctx.collect);
@@ -85,7 +89,7 @@ impl State for MsgType {
         match *event {
             b'A'..=b'Z' => {
                 if ctx.collect.len() < 3 {
-                    ctx.chksum = ctx.chksum ^ event;
+                    ctx.chksum ^= event;
                     ctx.collect.push(*event as char);
                     Rc::clone(&ctx.states.msgtype)
                 } else {
@@ -100,7 +104,7 @@ impl State for MsgType {
             }
             FIELD => {
                 if ctx.collect.len() == 3 {
-                    ctx.chksum = ctx.chksum ^ event;
+                    ctx.chksum ^= event;
                     ctx.msg.msgtype = take(&mut ctx.collect);
                     Rc::clone(&ctx.states.params)
                 } else {
@@ -136,7 +140,7 @@ impl State for Params {
     fn handle_event(&self, event: &u8, ctx: &mut InnerContext) -> Rc<Box<dyn State>> {
         match *event {
             FIELD => {
-                ctx.chksum = ctx.chksum ^ event;
+                ctx.chksum ^= event;
                 ctx.msg.params.push(take(&mut ctx.collect));
                 Rc::clone(&ctx.states.params)
             }
@@ -158,7 +162,7 @@ impl State for Params {
                 Rc::clone(&ctx.states.invalid)
             }
             _ => {
-                ctx.chksum = ctx.chksum ^ event;
+                ctx.chksum ^= event;
                 ctx.collect.push(*event as char);
                 Rc::clone(&ctx.states.params)
             }
