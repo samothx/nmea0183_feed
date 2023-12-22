@@ -91,7 +91,9 @@ mod tests {
             while let Some(result) = reader.next().await {
                 count += 1;
                 match result {
-                    Ok(_res) => (),
+                    Ok(res) => {
+                        eprintln!("{:?}", res)
+                    }
                     Err(error) => {
                         panic!("Error on msg {}: {:?}", count, error)
                     }
@@ -117,7 +119,7 @@ mod tests {
             while let Some(result) = reader.next().await {
                 count += 1;
                 match result {
-                    Ok(_res) => (),
+                    Ok(res) => eprintln!("{:?}", res),
                     Err(error) => {
                         panic!("Error on msg {}: {:?}", count, error)
                     }
