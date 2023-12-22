@@ -28,34 +28,39 @@ impl Decoder for Nmea0183Codec {
         let offset = self.ctx.get_event_count();
 
         // eprintln!("decode({}, offset: {})", to_string(src), offset);
-        let position = src[offset..]
-            .as_ref()
-            .iter()
-            .position(|b| match self.ctx.handle_event(b) {
-                Ok(result) => {
-                    if let Some(result) = result {
-                        rc = Ok(Some(result));
-                        if self.first {
-                            self.first = false
-                        }
-                        true
-                    } else {
-                        false
-                    }
-                }
-                Err(error) => {
-                    if self.first {
-                        rc = Err(std::io::Error::new(std::io::ErrorKind::Other, error));
-                        true
-                    } else {
-                        self.first = false;
-                        false
-                    }
-                }
-            });
 
-        if let Some(position) = position {
-            _ = src.split_to(offset + position + 1);
+        loop {
+            let position =
+                src[offset..]
+                    .as_ref()
+                    .iter()
+                    .position(|b| match self.ctx.handle_event(b) {
+                        Ok(result) => {
+                            if let Some(result) = result {
+                                rc = Ok(Some(result));
+                                if self.first {
+                                    self.first = false
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        Err(error) => {
+                            rc = Err(std::io::Error::new(std::io::ErrorKind::Other, error));
+                            true
+                        }
+                    });
+
+            if let Some(position) = position {
+                _ = src.split_to(offset + position + 1);
+            }
+
+            if self.first == true {
+                self.first = false
+            } else {
+                break;
+            }
         }
         rc
     }
