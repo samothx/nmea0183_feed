@@ -25,11 +25,9 @@ impl Decoder for Nmea0183Codec {
 
     fn decode(&mut self, src: &mut BytesMut) -> Result<Option<Self::Item>, Self::Error> {
         let mut rc = Ok(None);
-        let offset = self.ctx.get_event_count();
-
         // eprintln!("decode({}, offset: {})", to_string(src), offset);
-
         loop {
+            let offset = self.ctx.get_event_count();
             let position =
                 src[offset..]
                     .as_ref()
@@ -38,7 +36,7 @@ impl Decoder for Nmea0183Codec {
                         Ok(result) => {
                             if let Some(result) = result {
                                 rc = Ok(Some(result));
-                                if self.first {
+                                if self.first == true {
                                     self.first = false
                                 }
                                 true
