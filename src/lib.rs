@@ -62,3 +62,67 @@ fn to_string(buf: &BytesMut) -> String {
         .for_each(|byte| str_buf.push_str(format!("{},", byte_2_print(byte)).as_str()));
     str_buf
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::get_codec;
+    use futures::stream::StreamExt;
+    use tokio::fs::File;
+    use tokio::io::AsyncReadExt;
+    use tokio_test;
+
+    const TEST_FILE: &str = "./test_data/nmea0183_1000.log";
+
+    macro_rules! aw {
+        ($e:expr) => {
+            tokio_test::block_on($e)
+        };
+    }
+
+    #[test]
+    fn test_ok() {
+        aw!(async {
+            let file = File::open(TEST_FILE)
+                .await
+                .expect(format!("failed to open file {}", TEST_FILE).as_str());
+
+            let mut reader = get_codec(file);
+            let mut count = 0;
+            while let Some(result) = reader.next().await {
+                count += 1;
+                match result {
+                    Ok(_res) => (),
+                    Err(error) => {
+                        panic!("Error on msg {}: {:?}", count, error)
+                    }
+                }
+            }
+        })
+    }
+
+    #[test]
+    fn test_first_fail() {
+        aw!(async {
+            let mut file = File::open(TEST_FILE)
+                .await
+                .expect(format!("failed to open file {}", TEST_FILE).as_str());
+
+            let mut buf: [u8; 1] = [0];
+            file.read(&mut buf)
+                .await
+                .expect(format!("failed to read from file {}", TEST_FILE).as_str());
+
+            let mut reader = get_codec(file);
+            let mut count = 0;
+            while let Some(result) = reader.next().await {
+                count += 1;
+                match result {
+                    Ok(_res) => (),
+                    Err(error) => {
+                        panic!("Error on msg {}: {:?}", count, error)
+                    }
+                }
+            }
+        })
+    }
+}

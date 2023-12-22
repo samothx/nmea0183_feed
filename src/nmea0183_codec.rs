@@ -55,6 +55,7 @@ impl Decoder for Nmea0183Codec {
             }
 
             if self.first == true {
+                eprintln!("ignoring first error: {:?}", rc);
                 self.first = false
             } else {
                 break;
